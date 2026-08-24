@@ -1,54 +1,32 @@
 import com.fasterxml.jackson.dataformat.toml.TomlMapper
 import com.github.filteroutrusttests.NotRustTestsUsageFilteringRule
 import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
-import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.editor.LogicalPosition
-import com.intellij.testFramework.PsiTestUtil
+import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.fileEditor.TextEditorLocation
-import com.intellij.openapi.progress.blockingContext
-import com.intellij.openapi.project.BaseProjectDirectories.Companion.getBaseDirectories
-import com.intellij.openapi.project.Project
-import com.intellij.openapi.util.Key
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.readText
-import com.intellij.platform.backend.workspace.workspaceModel
 import com.intellij.psi.PsiElement
-import com.intellij.psi.util.PsiTreeUtil
-import org.rust.lang.core.psi.RsFunction
-import org.rust.lang.core.psi.ext.RsNamedElement
 import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.IndexingTestUtil
+import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.testFramework.replaceService
 import com.intellij.usageView.UsageInfo
 import com.intellij.usages.Usage
 import com.intellij.usages.UsageInfo2UsageAdapter
 import com.jetbrains.rd.util.first
-import kotlinx.coroutines.runBlocking
-import org.junit.Ignore
-import org.junit.Test
-import org.rust.cargo.project.model.CargoProjectsService
-import org.rust.cargo.project.model.RustcInfo
-import org.rust.cargo.project.model.cargoProjects
-import org.rust.cargo.project.workspace.CargoWorkspace
-import org.rust.cargo.project.workspace.UserEnabledFeatures
-import org.rust.lang.core.psi.ext.RsTraitOrImpl
-import org.rust.openapiext.pathAsPath
-import java.io.File
-import java.nio.file.Path
-import org.rust.cargo.project.model.CargoProject
-
-import kotlin.io.path.Path
-import kotlin.io.path.createTempDirectory
-import kotlin.io.path.name
-import kotlin.io.path.pathString
-
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
-import org.rust.cargo.toolchain.tools.Cargo
-import org.rust.ide.newProject.openFiles
-import org.rust.lang.core.psi.rustPsiManager
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import org.rust.cargo.project.model.CargoProjectsService
+import org.rust.lang.core.psi.RsFunction
+import org.rust.lang.core.psi.ext.RsNamedElement
+import org.rust.lang.core.psi.ext.RsTraitOrImpl
+import java.io.File
 
 data class Position(
     var line: Int = 0, var column: Int = 0
@@ -75,6 +53,10 @@ data class ProjectTestCases(
 )
 
 class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
+    override fun runInDispatchThread(): Boolean {
+        return false
+    }
+
     override fun getTestDataPath(): String = findTestDataPath()
 
     private fun findTestDataPath(): String {
@@ -194,31 +176,37 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         printTree(root!!)
 
         val testProjectService = TestCargoProjectsServiceImpl(myFixture.project, MainScope())
-        val testProject = testProjectService.createTestProject(Path(projectRoot).resolve("Cargo.toml"))
+        val ws = testProjectService.createTestCargoWorkspace(root)
 
-        project.replaceService(CargoProjectsService::class.java, testProjectService, testRootDisposable)
+        val projectUsages = runBlocking {
+            testProjectService.createTestProject(root, ws)
 
-        IndexingTestUtil.waitUntilIndexesAreReady(testProject.project)
+            project.replaceService(CargoProjectsService::class.java, testProjectService, testRootDisposable)
 
-        val caretFilePath = projectTestCases.caret.path
-        val caretFile = myFixture.findFileInTempDir(caretFilePath)
-            ?: error("Caret file not found: $caretFilePath")
-        myFixture.configureFromExistingVirtualFile(caretFile)
+            IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-        val caretPos = projectTestCases.caret.position
-        val logicalPosition = LogicalPosition(caretPos.line - 1, caretPos.column - 1)
-        myFixture.editor.caretModel.moveToLogicalPosition(logicalPosition)
+            val caretFilePath = projectTestCases.caret.path
+            val caretFile = myFixture.findFileInTempDir(caretFilePath)
+                ?: error("Caret file not found: $caretFilePath")
+            myFixture.configureFromExistingVirtualFile(caretFile)
 
-        val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
-        val namedElement =
-            PsiTreeUtil.getParentOfType(element, RsTraitOrImpl::class.java) ?: PsiTreeUtil.getParentOfType(
-                element,
-                RsFunction::class.java
-            ) ?: PsiTreeUtil.getParentOfType(
-                element, RsNamedElement::class.java
-            ) ?: element
+            val caretPos = projectTestCases.caret.position
+            val logicalPosition = LogicalPosition(caretPos.line - 1, caretPos.column - 1)
+            withContext(Dispatchers.EDT) {
+                myFixture.editor.caretModel.moveToLogicalPosition(logicalPosition)
 
-        val projectUsages = collectProjectUsages(namedElement)
+                val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
+
+                val namedElement = PsiTreeUtil.getParentOfType(element, RsTraitOrImpl::class.java) ?: PsiTreeUtil.getParentOfType(
+                    element,
+                    RsFunction::class.java
+                ) ?: PsiTreeUtil.getParentOfType(
+                    element, RsNamedElement::class.java
+                ) ?: element
+                collectProjectUsages(namedElement)
+            }
+        }
+
         println("Found ${projectUsages.size} usages in project:")
         for ((path, usages) in projectUsages) {
             println("Usages for $path:")
