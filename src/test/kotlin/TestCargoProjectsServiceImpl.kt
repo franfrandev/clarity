@@ -1,185 +1,112 @@
-import com.intellij.execution.RunManager
-import com.intellij.openapi.application.invokeAndWaitIfNeeded
-import com.intellij.openapi.application.invokeLater
-import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.diagnostic.logger
-import com.intellij.openapi.fileTypes.FileTypeManager
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.roots.ProjectFileIndex
-import kotlinx.coroutines.CompletableDeferred
+import com.intellij.openapi.vfs.VirtualFile
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.runBlocking
+import org.rust.cargo.CfgOptions
 import org.rust.cargo.project.model.CargoProject
 import org.rust.cargo.project.model.impl.CargoProjectImpl
 import org.rust.cargo.project.model.impl.CargoProjectsServiceImpl
-import org.rust.cargo.project.model.impl.CargoSyncTask
+import org.rust.cargo.project.workspace.CargoWorkspace
+import org.rust.cargo.project.workspace.CargoWorkspace.*
+import org.rust.cargo.project.workspace.CargoWorkspaceData
+import org.rust.cargo.project.workspace.CargoWorkspaceData.Package
+import org.rust.cargo.project.workspace.CargoWorkspaceData.Target
 import org.rust.cargo.project.workspace.PackageOrigin
-import org.rust.taskQueue
-import java.io.File
-import java.nio.file.Path
-import com.intellij.openapi.module.Module
-import com.intellij.openapi.roots.ModuleRootModificationUtil
-import com.intellij.openapi.roots.ex.ProjectRootManagerEx
-import com.intellij.openapi.util.EmptyRunnable
-import com.intellij.testFramework.LeakHunter
-import kotlinx.coroutines.Deferred
-import org.intellij.markdown.lexer.push
-import org.rust.cargo.project.model.CargoProjectsService
-import org.rust.cargo.project.model.CargoProjectsService.CargoRefreshStatus
-import org.rust.cargo.project.model.ContentEntryWrapper
-import org.rust.cargo.project.model.setup
-import org.rust.lang.RsFileType
-import org.rust.stdext.AsyncValue
-import org.rust.stdext.toResult
-import java.util.concurrent.CompletableFuture
+import org.rust.openapiext.pathAsPath
+import java.nio.file.Paths
 
-class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope, val module: Module) :
-    CargoProjectsServiceImpl(project, cs) {
-    private val LOG = logger<TestCargoProjectsServiceImpl>()
-    private val projects = AsyncValue<List<CargoProjectImpl>>(emptyList())
+class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : CargoProjectsServiceImpl(project, cs) {
+    private fun testTarget(
+        crateRootUrl: String,
+        name: String,
+        kind: TargetKind,
+        doctest: Boolean = true,
+    ): Target =
+        Target(crateRootUrl, name, kind, Edition.EDITION_2021, doctest, emptyList())
 
-    private fun setupProjectRoots(project: Project, cargoProjects: List<CargoProject>) {
-        invokeAndWaitIfNeeded {
-            RunManager.getInstance(project)
-            ProjectFileIndex.getInstance(project)
+    private fun collectTargets(root: VirtualFile, contentRoot: String, name: String): List<Target> {
+        val targets = mutableListOf<Target>()
 
-            runWriteAction {
-                if (project.isDisposed) return@runWriteAction
-                for (cargoProject in cargoProjects) {
+        val src = root.findChild("src")
+        if (src != null) {
+            if (src.findChild("lib.rs") != null) {
+                targets += testTarget("$contentRoot/src/lib.rs", name, TargetKind.Lib(LibKind.LIB))
+            }
+            if (src.findChild("main.rs") != null) {
+                targets += testTarget("$contentRoot/src/main.rs", name, TargetKind.Bin)
+            }
+            src.findChild("bin")?.children.orEmpty()
+                .filter { !it.isDirectory && it.extension == "rs" }
+                .forEach { targets += testTarget("$contentRoot/src/bin/${it.name}", it.nameWithoutExtension, TargetKind.Bin) }
+        }
 
-                    val workspacePackages =
-                        cargoProject.workspace?.packages.orEmpty().filter { it.origin == PackageOrigin.WORKSPACE }
+        collectDirTargets(root, contentRoot, "tests", TargetKind.Test, targets)
+        collectDirTargets(root, contentRoot, "benches", TargetKind.Bench, targets)
 
-                    for (pkg in workspacePackages) {
-                        val pkgFile = pkg.contentRoot!!
-                        ModuleRootModificationUtil.updateModel(module) { rootModel ->
-                            val contentEntry = rootModel.contentEntries.singleOrNull() ?: return@updateModel
-                            ContentEntryWrapper(contentEntry).setup(pkgFile)
-                        }
-                    }
-                }
+        root.findChild("examples")?.children.orEmpty()
+            .filter { !it.isDirectory && it.extension == "rs" }
+            .forEach { targets += testTarget("$contentRoot/examples/${it.name}", it.nameWithoutExtension, TargetKind.ExampleBin) }
+
+        if (root.findChild("build.rs") != null) {
+            targets += testTarget("$contentRoot/build.rs", "build_script_build", TargetKind.CustomBuild, doctest = false)
+        }
+
+        return targets
+    }
+
+    private fun collectDirTargets(
+        root: VirtualFile,
+        contentRoot: String,
+        dirName: String,
+        kind: TargetKind,
+        targets: MutableList<Target>,
+    ) {
+        val dir = root.findChild(dirName) ?: return
+        for (child in dir.children) {
+            if (!child.isDirectory && child.extension == "rs") {
+                targets += testTarget("$contentRoot/$dirName/${child.name}", child.nameWithoutExtension, kind)
+            } else if (child.isDirectory && child.findChild("main.rs") != null) {
+                targets += testTarget("$contentRoot/$dirName/${child.name}/main.rs", child.name, kind)
             }
         }
     }
 
-    suspend fun doRefresh(
-        project: Project, projects: List<CargoProjectImpl>
-    ): List<CargoProjectImpl> {
-        val result = CompletableDeferred<List<CargoProjectImpl>>()
-        val syncTask = CargoSyncTask(project, projects, true, result)
+    fun testCargoPackage(root: VirtualFile, contentRoot: String, name: String) = Package(
+        id = "$name 0.0.1",
+        contentRootUrl = contentRoot,
+        name = name,
+        version = "0.0.1",
+        targets = collectTargets(root, contentRoot, name),
+        source = null,
+        origin = PackageOrigin.WORKSPACE,
+        edition = Edition.EDITION_2021,
+        features = emptyMap(),
+        enabledFeatures = emptySet(),
+        cfgOptions = CfgOptions.EMPTY,
+        env = emptyMap(),
+        outDirUrl = null,
+        categories = emptySet(),
+    )
 
-        invokeLater {
-            project.taskQueue.run(syncTask)
-        }
-
-        LOG.debug("Waiting for project refresh")
-
-        val updatedProjects = result.await()
-        setupProjectRoots(project, updatedProjects)
-        return updatedProjects
-    }
-
-    protected fun modifyProjects2(
-        updater: (List<CargoProjectImpl>) -> CompletableFuture<List<CargoProjectImpl>>
-    ): CompletableFuture<List<CargoProjectImpl>> {
-        val refreshStatusPublisher = project.messageBus.syncPublisher(CargoProjectsService.CARGO_PROJECTS_REFRESH_TOPIC)
-
-        val wrappedUpdater = { projects: List<CargoProjectImpl> ->
-            refreshStatusPublisher.onRefreshStarted()
-            updater(projects)
-        }
-
-        return projects.updateAsync(wrappedUpdater).thenApply { projects ->
-                invokeAndWaitIfNeeded {
-                    val fileTypeManager = FileTypeManager.getInstance()
-                    runWriteAction {
-                        if (projects.isNotEmpty()) {
-//                            checkRustVersion(projects)
-
-                            // Android RenderScript (from Android plugin) files has the same extension (.rs) as Rust files.
-                            // In some cases, IDEA determines `*.rs` files have RenderScript file type instead of Rust one
-                            // that leads any code insight features don't work in Rust projects.
-                            // See https://youtrack.jetbrains.com/issue/IDEA-237376
-                            //
-                            // It's a hack to provide proper mapping when we are sure that it's Rust project
-                            fileTypeManager.associateExtension(RsFileType, RsFileType.defaultExtension)
-                        }
-
-//                        directoryIndex.resetIndex()
-//                        // In unit tests roots change is done by the test framework in most cases
-//                        runWithNonLightProject(project) {
-//                            ProjectRootManagerEx.getInstanceEx(project)
-//                                .makeRootsChange(EmptyRunnable.getInstance(), false, true)
-//                        }
-//                        project.messageBus.syncPublisher(CargoProjectsService.CARGO_PROJECTS_TOPIC)
-//                            .cargoProjectsUpdated(this, projects)
-                        initialized = true
-                    }
-                }
-                projects
-            }.handle { projects, err ->
-//                val status = err?.toRefreshStatus() ?: CargoRefreshStatus.SUCCESS
-//                refreshStatusPublisher.onRefreshFinished(status)
-                projects
-            }
-    }
-
-    fun attachTestCargoProject(manifest: Path): CompletableFuture<List<CargoProjectImpl>> {
-//        LeakHunter.checkProjectLeak()
-//        return modifyProjects {
-        val cargoProjectImpl = CargoProjectImpl(manifest, this@TestCargoProjectsServiceImpl)
-        return modifyProjects2({
-            LOG.debug("Refreshing projects")
-            println("Refreshing projects")
-            runBlocking {
-                val cargoProjects = doRefresh(project, it + cargoProjectImpl)
-                println("Projects refreshed")
-                CompletableFuture.completedFuture(cargoProjects)
-            }
-//            doRefresh(project, arrayListOf(CargoProjectImpl(manifest, this@TestCargoProjectsServiceImpl)))
-//            doRefresh(project, it)
-        })
-//        return modifyProjects { doRefresh(project, it) }
-    }
-
-    fun createTestProject(manifest: Path): TestCargoProject {
-        var cargoProject = CargoProjectImpl(
-            manifest, this
+    fun createTestCargoWorkspace(root: VirtualFile): CargoWorkspace {
+        val contentRoot = root.url
+        val name = "benches" // retreive name from Cargo.toml if needed
+        val packages = listOf(testCargoPackage(root, contentRoot, name))
+        return CargoWorkspace.deserialize(
+            Paths.get("$contentRoot/workspace/Cargo.toml"),
+            CargoWorkspaceData(packages, emptyMap(), emptyMap(), contentRoot),
         )
-        LOG.debug("Creating test project")
-        println("Creating test project")
-        attachTestCargoProject(manifest).thenApply { refreshed ->
-            refreshed.find { it.manifest == manifest }?.let {
-                println("Found project")
-                cargoProject = it
-            }
-            assert(cargoProject.workspaceStatus == CargoProject.UpdateStatus.UpToDate)
-            println(cargoProject.workspaceRootDir?.path)
-            File(cargoProject.workspaceRootDir?.path).listFiles {
-                if (it.isDirectory) {
-                    File(it.path).listFiles {
-                        println(it)
-                        true
-                    }
-                }
-                true
-            }
-        }
+    }
 
-        return TestCargoProject(
-            buildScriptEvaluationStatus = cargoProject.buildScriptEvaluationStatus,
-            manifest = cargoProject.manifest,
-            presentableName = cargoProject.presentableName,
-            project = cargoProject.project,
-            rootDir = cargoProject.rootDir,
-            rustcInfo = cargoProject.rustcInfo,
-            rustcInfoStatus = cargoProject.rustcInfoStatus,
-            rustcPrivateStatus = cargoProject.rustcPrivateStatus,
-            stdlibStatus = cargoProject.stdlibStatus,
-            userEnabledFeatures = cargoProject.userEnabledFeatures,
-            workspace = cargoProject.workspace,
-            workspaceRootDir = cargoProject.workspaceRootDir,
-            workspaceStatus = cargoProject.workspaceStatus
+    suspend fun createTestProject(rootDir: VirtualFile, ws: CargoWorkspace) {
+        val manifest = rootDir.pathAsPath.resolve("Cargo.toml")
+        val testProject = CargoProjectImpl(
+            manifest, this, emptyMap(), ws, null, null,
+            workspaceStatus = CargoProject.UpdateStatus.UpToDate,
+            rustcInfoStatus = CargoProject.UpdateStatus.NeedsUpdate
         )
+        testProject.setRootDir(rootDir)
+        modifyProjects { _ ->
+            listOf(testProject)
+        }.await()
     }
 }
