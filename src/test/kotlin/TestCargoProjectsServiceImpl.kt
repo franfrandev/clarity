@@ -20,8 +20,7 @@ class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : Cargo
         name: String,
         kind: TargetKind,
         doctest: Boolean = true,
-    ): Target =
-        Target(crateRootUrl, name, kind, Edition.EDITION_2021, doctest, emptyList())
+    ): Target = Target(crateRootUrl, name, kind, Edition.EDITION_2021, doctest, emptyList())
 
     private fun collectTargets(root: VirtualFile, contentRoot: String, name: String): List<Target> {
         val targets = mutableListOf<Target>()
@@ -34,20 +33,26 @@ class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : Cargo
             if (src.findChild("main.rs") != null) {
                 targets += testTarget("$contentRoot/src/main.rs", name, TargetKind.Bin)
             }
-            src.findChild("bin")?.children.orEmpty()
-                .filter { !it.isDirectory && it.extension == "rs" }
-                .forEach { targets += testTarget("$contentRoot/src/bin/${it.name}", it.nameWithoutExtension, TargetKind.Bin) }
+            src.findChild("bin")?.children.orEmpty().filter { !it.isDirectory && it.extension == "rs" }.forEach {
+                targets += testTarget(
+                    "$contentRoot/src/bin/${it.name}", it.nameWithoutExtension, TargetKind.Bin
+                )
+            }
         }
 
         collectDirTargets(root, contentRoot, "tests", TargetKind.Test, targets)
         collectDirTargets(root, contentRoot, "benches", TargetKind.Bench, targets)
 
-        root.findChild("examples")?.children.orEmpty()
-            .filter { !it.isDirectory && it.extension == "rs" }
-            .forEach { targets += testTarget("$contentRoot/examples/${it.name}", it.nameWithoutExtension, TargetKind.ExampleBin) }
+        root.findChild("examples")?.children.orEmpty().filter { !it.isDirectory && it.extension == "rs" }.forEach {
+            targets += testTarget(
+                "$contentRoot/examples/${it.name}", it.nameWithoutExtension, TargetKind.ExampleBin
+            )
+        }
 
         if (root.findChild("build.rs") != null) {
-            targets += testTarget("$contentRoot/build.rs", "build_script_build", TargetKind.CustomBuild, doctest = false)
+            targets += testTarget(
+                "$contentRoot/build.rs", "build_script_build", TargetKind.CustomBuild, doctest = false
+            )
         }
 
         return targets
@@ -89,8 +94,16 @@ class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : Cargo
 
     fun createTestCargoWorkspace(root: VirtualFile): CargoWorkspace {
         val contentRoot = root.url
-        val name = "benches" // retreive name from Cargo.toml if needed
-        val packages = listOf(testCargoPackage(root, contentRoot, name))
+        val cargoToml = root.findChild("Cargo.toml") ?: error("Cargo.toml not found in $contentRoot")
+        val packageName = cargoToml.contentsToByteArray().toString(Charsets.UTF_8)
+            .lineSequence()
+            .map(String::trim)
+            .firstOrNull { it.startsWith("name") && it.contains('=') }
+            ?.substringAfter('=')
+            ?.trim()
+            ?.removeSurrounding("\"")
+            ?: error("Package name not found in ${cargoToml.path}")
+        val packages = listOf(testCargoPackage(root, contentRoot, packageName))
         return CargoWorkspace.deserialize(
             Paths.get("$contentRoot/workspace/Cargo.toml"),
             CargoWorkspaceData(packages, emptyMap(), emptyMap(), contentRoot),
@@ -100,7 +113,12 @@ class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : Cargo
     suspend fun createTestProject(rootDir: VirtualFile, ws: CargoWorkspace) {
         val manifest = rootDir.pathAsPath.resolve("Cargo.toml")
         val testProject = CargoProjectImpl(
-            manifest, this, emptyMap(), ws, null, null,
+            manifest,
+            this,
+            emptyMap(),
+            ws,
+            null,
+            null,
             workspaceStatus = CargoProject.UpdateStatus.UpToDate,
             rustcInfoStatus = CargoProject.UpdateStatus.NeedsUpdate
         )

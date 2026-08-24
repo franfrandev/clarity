@@ -11,7 +11,15 @@ expected = [
 ]
 
 [[files]]
+path = "src/hi.rs"
+expected = [
+    { position = { line = 1, column = 12 }, visible = true },
+    { position = { line = 3, column = 6 }, visible = true }
+]
+
+[[files]]
 path = "tests/integration.rs"
 expected = [
-    { position = { line = 3, column = 14 }, visible = false }
+    { position = { line = 1, column = 13 }, visible = false },
+    { position = { line = 5, column = 6 }, visible = false }
 ]
