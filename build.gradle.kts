@@ -46,7 +46,9 @@ intellijPlatform {
             </ul>
         """.trimIndent()
     }
-    instrumentCode = true
+//    instrumentCode = true
+    instrumentCode =
+        false // TODO: Execution failed for task ':instrumentCode' (registered by plugin class 'org.jetbrains.intellij.platform.gradle.plugins.project.IntelliJPlatformModulePlugin').
 }
 
 tasks {
@@ -57,7 +59,7 @@ tasks {
         useJUnit()
         inputs.dir("src/test/testData")
         systemProperty("testDataPath", project.projectDir.resolve("src/test/testData").absolutePath)
-//        systemProperty("idea.log.debug.categories", "com.intellij")
-//        systemProperty("idea.log.trace.categories", "com.intellij")
+//        systemProperty("idea.log.debug.categories", "com.intellij,org.rust,#TestCargoProjectsServiceImpl")
+//        systemProperty("idea.log.trace.categories", "com.intellij,org.rust")
     }
 }

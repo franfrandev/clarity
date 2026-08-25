@@ -1,17 +1,25 @@
 [caret]
 path = "src/lib.rs"
-position = { line = 1, column = 12 }
+position = { line = 3, column = 12 }
 
 [[files]]
 path = "src/lib.rs"
 expected = [
-    { position = { line = 5, column = 6 }, visible = true },
-    { position = { line = 13, column = 16 }, visible = true },
-    { position = { line = 15, column = 10 }, visible = true }
+    { position = { line = 7, column = 6 }, visible = true },
+    { position = { line = 15, column = 16 }, visible = false },
+    { position = { line = 17, column = 10 }, visible = false }
+]
+
+[[files]]
+path = "src/hi.rs"
+expected = [
+    { position = { line = 1, column = 12 }, visible = true },
+    { position = { line = 3, column = 6 }, visible = true }
 ]
 
 [[files]]
 path = "tests/integration.rs"
 expected = [
-    { position = { line = 3, column = 14 }, visible = false }
+    { position = { line = 1, column = 13 }, visible = false },
+    { position = { line = 5, column = 6 }, visible = false }
 ]

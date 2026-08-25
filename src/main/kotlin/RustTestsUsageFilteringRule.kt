@@ -7,20 +7,14 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.usages.Usage
 import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
-import com.intellij.util.concurrency.NonUrgentExecutor
-import io.netty.util.BooleanSupplier
-import kotlinx.datetime.Instant
 import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.ext.isTest
 import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.name
-import kotlin.time.Clock
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
-class NotRustTestsUsageFilteringRule : UsageFilteringRule {
+class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
     private val memo = ConcurrentHashMap<PsiElement, Boolean>()
@@ -36,12 +30,17 @@ class NotRustTestsUsageFilteringRule : UsageFilteringRule {
         val psiUsage = usage as? PsiElementUsage ?: return@compute true
         val element = psiUsage.element ?: return@compute true
 
-        if (isInTestLikeDir(element)) return@compute false
+        if (isInTestLikeDir(element)) {
+            return@compute false
+        }
 
-        if (!isRustElement(element)) return@compute true
+        if (!isRustElement(element)) {
+            return@compute true
+        }
 
         val startTime = System.currentTimeMillis()
-        return@compute !shouldFilterOut(element, startTime)
+        val filterOut = shouldFilterOut(element, startTime)
+        return@compute !filterOut
     }
 
     private fun isRustElement(element: PsiElement): Boolean {
@@ -50,7 +49,8 @@ class NotRustTestsUsageFilteringRule : UsageFilteringRule {
     }
 
     private fun isInTestLikeDir(element: PsiElement): Boolean {
-        val path = element.containingFile?.virtualFile?.path ?: return false
+        val virtualFile = element.containingFile?.virtualFile ?: return false
+        val path = virtualFile.path
         val p = Paths.get(path)
         return p.any { it.name == "tests" || it.name == "benches" }
     }
@@ -85,18 +85,25 @@ class NotRustTestsUsageFilteringRule : UsageFilteringRule {
     private fun calculateIsInsideRustTest(
         element: PsiElement, visiting: MutableSet<PsiElement>, startTime: Long, depth: Int
     ): Boolean {
-        if (element.isUnderCfgTest) return true
+        if (element.isUnderCfgTest) {
+            return true
+        }
 
         if (element is RsFunction) {
-            if (element.isTest) return true
+            if (element.isTest) {
+                return true
+            }
 
             val references = ReferencesSearch.search(element)
 
             val allInTests = references.allMatch {
-                isInsideRustTestFunction(it.element, visiting, startTime, depth + 1)
+                val inTest = isInsideRustTestFunction(it.element, visiting, startTime, depth + 1)
+                inTest
             }
 
-            if (references.count() > 0 && allInTests) return true
+            if (references.count() > 0 && allInTests) {
+                return true
+            }
         }
 
         val parent = element.parent ?: return false

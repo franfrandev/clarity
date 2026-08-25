@@ -12,7 +12,7 @@ import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
 import com.intellij.usages.rules.UsageFilteringRuleProvider
 
-class NotRustTestsUsageFilteringRuleProvider : UsageFilteringRuleProvider {
+class RustTestsUsageFilteringRuleProvider : UsageFilteringRuleProvider {
     override fun getApplicableRules(project: Project): Collection<UsageFilteringRule> {
         // The action is provided via createFilteringActions(view) to keep normal toggle semantics.
         return emptyList()
@@ -20,7 +20,7 @@ class NotRustTestsUsageFilteringRuleProvider : UsageFilteringRuleProvider {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun getActiveRules(project: Project): Array<UsageFilteringRule> {
-        return if (isEnabled(project)) arrayOf(NotRustTestsUsageFilteringRule()) else UsageFilteringRule.EMPTY_ARRAY
+        return if (isEnabled(project)) arrayOf(RustTestsUsageFilteringRule()) else UsageFilteringRule.EMPTY_ARRAY
     }
 
     @Suppress("OVERRIDE_DEPRECATION")
@@ -37,18 +37,18 @@ class NotRustTestsUsageFilteringRuleProvider : UsageFilteringRuleProvider {
     ) {
         override fun isSelected(e: AnActionEvent): Boolean {
             val project = e.project ?: return false
-            return NotRustTestsUsageFilteringRuleProvider().isEnabled(project)
+            return RustTestsUsageFilteringRuleProvider().isEnabled(project)
         }
 
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             val project = e.project ?: return
-            NotRustTestsUsageFilteringRuleProvider().setEnabled(project, state)
+            RustTestsUsageFilteringRuleProvider().setEnabled(project, state)
             project.messageBus.syncPublisher(UsageFilteringRuleProvider.RULES_CHANGED).run()
         }
 
         override fun update(e: AnActionEvent) {
             super.update(e)
-            val visible = NotRustTestsUsageFilteringRuleProvider().isRustUsageView(view, e)
+            val visible = RustTestsUsageFilteringRuleProvider().isRustUsageView(view, e)
             e.presentation.isVisible = visible
             e.presentation.isEnabled = visible
         }
