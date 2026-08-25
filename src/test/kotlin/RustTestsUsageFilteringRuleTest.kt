@@ -22,6 +22,10 @@ class RustTestsUsageFilteringRuleUnitTests : UnitTestFixture() {
     fun testRustUnitUnitTest() {
         runUnitTest("unit_test")
     }
+
+    fun testRustUnitEnumVariants() {
+        runUnitTest("enum_variants")
+    }
 }
 
 class RustTestsUsageFilteringRuleIntegrationTest : IntegrationTestFixture() {
