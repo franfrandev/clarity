@@ -60,7 +60,7 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
     ): Boolean {
         ProgressManager.checkCanceled()
 
-        if (depth > MAX_DEPTH || System.currentTimeMillis() - startTime > TIMEOUT_MS) {
+        if (depth > MAX_DEPTH || hasTimedOut(startTime)) {
             return false
         }
 
@@ -103,6 +103,10 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
 
             var hasReferences = false
             val allInTests = references.all {
+                if (hasTimedOut(startTime)) {
+                    return false // this took too long, return a potential false negative.
+                }
+
                 hasReferences = true
                 val inTest = isInsideRustTestFunction(it.element, visiting, startTime, depth + 1)
                 inTest
@@ -115,6 +119,10 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
 
         val parent = element.parent ?: return false
         return isInsideRustTestFunction(parent, visiting, startTime, depth + 1)
+    }
+
+    private fun hasTimedOut(startTime: Long): Boolean {
+        return System.currentTimeMillis() - startTime > TIMEOUT_MS
     }
 
     companion object {
