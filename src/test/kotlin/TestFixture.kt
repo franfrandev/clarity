@@ -89,14 +89,6 @@ abstract class IntegrationTestFixture : TestFixture() {
 
         val projectUsages = project.collectProjectUsages(testCase).getOrNull() ?: error("No project usages found")
 
-        log.debug("Found ${projectUsages.size} usages in project:")
-        for ((path, usages) in projectUsages) {
-            log.debug("Usages for $path:")
-            for (usage in usages) {
-                log.debug("  - $usage")
-            }
-        }
-
         val rule = RustTestsUsageFilteringRule()
 
         testCase.files.forEach { case ->

@@ -46,35 +46,44 @@ class HeavyCargoProject(
         return Result.success(Unit)
     }
 
-    suspend fun collectProjectUsages(testCase: ProjectTestCases): Result<Map<String, Map<Position, Usage>>> =
-        runCatching {
-            val caretFilePath = testCase.caret.path
-            log.debug("Caret file path: $caretFilePath")
-            val caretFile = myFixture.findFileInTempDir(caretFilePath) ?: error("Caret file not found: $caretFilePath")
+    suspend fun collectProjectUsages(testCase: ProjectTestCases): Result<Map<String, Map<Position, Usage>>> {
+        val caretFilePath = testCase.caret.path
+        log.debug("Caret file path: $caretFilePath")
+        val caretFile = myFixture.findFileInTempDir(caretFilePath) ?: error("Caret file not found: $caretFilePath")
 
-            val caretPos = testCase.caret.position
-            val logicalPosition = LogicalPosition(caretPos.line - 1, caretPos.column - 1)
-            withContext(Dispatchers.EDT) {
-                myFixture.configureFromExistingVirtualFile(caretFile)
-                check(myFixture.file.virtualFile == caretFile) {
-                    "Fixture configured ${myFixture.file.virtualFile?.path}, expected ${caretFile.path}"
-                }
-                myFixture.editor.caretModel.moveToLogicalPosition(logicalPosition)
+        val caretPos = testCase.caret.position
+        val logicalPosition = LogicalPosition(caretPos.line - 1, caretPos.column - 1)
+        val projectUsages = withContext(Dispatchers.EDT) {
+            myFixture.configureFromExistingVirtualFile(caretFile)
+            check(myFixture.file.virtualFile == caretFile) {
+                "Fixture configured ${myFixture.file.virtualFile?.path}, expected ${caretFile.path}"
+            }
+            myFixture.editor.caretModel.moveToLogicalPosition(logicalPosition)
 
-                val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
+            val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
 
-                val namedElement =
-                    PsiTreeUtil.getParentOfType(element, RsTraitOrImpl::class.java) ?: PsiTreeUtil.getParentOfType(
-                        element, RsFunction::class.java
-                    ) ?: PsiTreeUtil.getParentOfType(
-                        element, RsNamedElement::class.java
-                    ) ?: element
-                check(namedElement.containingFile.virtualFile == caretFile) {
-                    "Searching references from ${namedElement.containingFile.virtualFile?.path}, expected ${caretFile.path}"
-                }
-                collectAllProjectUsages(namedElement)
+            val namedElement =
+                PsiTreeUtil.getParentOfType(element, RsTraitOrImpl::class.java) ?: PsiTreeUtil.getParentOfType(
+                    element, RsFunction::class.java
+                ) ?: PsiTreeUtil.getParentOfType(
+                    element, RsNamedElement::class.java
+                ) ?: element
+            check(namedElement.containingFile.virtualFile == caretFile) {
+                "Searching references from ${namedElement.containingFile.virtualFile?.path}, expected ${caretFile.path}"
+            }
+            collectAllProjectUsages(namedElement)
+        }
+
+        log.debug("Found ${projectUsages.size} usages in project:")
+        for ((path, usages) in projectUsages) {
+            log.debug("Usages for $path:")
+            for (usage in usages) {
+                log.debug("  - $usage")
             }
         }
+
+        return Result.success(projectUsages)
+    }
 
     private fun collectAllProjectUsages(element: PsiElement): Map<String, Map<Position, Usage>> {
         val map = mutableMapOf<String, MutableMap<Position, Usage>>()
