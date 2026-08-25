@@ -7,20 +7,14 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.usages.Usage
 import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
-import com.intellij.util.concurrency.NonUrgentExecutor
-import io.netty.util.BooleanSupplier
-import kotlinx.datetime.Instant
 import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.ext.isTest
 import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.name
-import kotlin.time.Clock
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
-class NotRustTestsUsageFilteringRule : UsageFilteringRule {
+class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
     private val memo = ConcurrentHashMap<PsiElement, Boolean>()

@@ -1,8 +1,7 @@
 import com.fasterxml.jackson.dataformat.toml.TomlMapper
-import com.github.filteroutrusttests.NotRustTestsUsageFilteringRule
+import com.github.filteroutrusttests.RustTestsUsageFilteringRule
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.EDT
-import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.editor.LogicalPosition
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.fileEditor.TextEditorLocation
@@ -27,8 +26,33 @@ import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.ext.RsNamedElement
 import org.rust.lang.core.psi.ext.RsTraitOrImpl
 import java.io.File
+import kotlin.io.path.Path
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
 
-private val log = Logger.getInstance("com.github.filteroutrusttests")
+abstract class TestInterface : TestFixture() {
+    fun runUnitTest(name: String) {
+        val testCase = readUnitTestCase(name)
+
+        runBlocking {
+            runUnitTestCase(name, testCase).onFailure { exception ->
+                fail("Test case '$name' failed: ${exception.message}")
+            }
+        }
+    }
+
+    fun runIntegrationTest(name: String) {
+        val testCase = readIntegrationTestCase(name)
+
+        runProjectsTestCase(name, testCase).onFailure { exception ->
+            log.error(
+                "Test case '$name' failed: ${exception.message}, cause: ${exception.cause}, stack: ${exception.stackTraceToString()}",
+                exception
+            )
+            fail("Test case '$name' failed: ${exception.message}")
+        }
+    }
+}
 
 data class Position(
     var line: Int = 0, var column: Int = 0
@@ -54,23 +78,12 @@ data class ProjectTestCases(
     var caret: Caret = Caret(), var files: List<TestFile> = arrayListOf()
 )
 
-class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
+abstract class TestFixture : BasePlatformTestCase() {
     override fun runInDispatchThread(): Boolean {
         return false
     }
 
-    override fun getTestDataPath(): String = findTestDataPath()
-
-    private fun findTestDataPath(): String {
-        System.getProperty("testDataPath")?.let { return it }
-
-        var dir = File("").absoluteFile
-        while (dir != null) {
-            val candidate = File(dir, "src/test/testData")
-            if (candidate.exists()) return candidate.absolutePath
-            dir = dir.parentFile
-        }
-
+    override fun getTestDataPath(): String {
         return File("src/test/testData").absolutePath
     }
 
@@ -83,25 +96,29 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         assertNotNull("Rust plugin is not found", plugin)
     }
 
-    private fun readUnitTestCases(): Map<String, TestCase> {
+    fun readUnitTestCase(name: String): TestCase {
+        val filename = "$name.toml"
+        val testCasePath = Path(testDataPath, "unit", filename)
+        if (!(testCasePath.exists())) {
+            error("Unit test case '$filename' not found")
+        }
         val mapper = TomlMapper()
-        val root = File(testDataRoot, "unit")
-        return root.walk().filter { it.isFile && it.extension == "toml" }
-            .associate { it.name to mapper.readValue(it, TestCase::class.java) }
+        val testCase = mapper.readValue(testCasePath.toFile(), TestCase::class.java)
+        return testCase
     }
 
-    private val testDataRoot: String
-        get() = getTestDataPath()
-
-    private fun readProjectsTestCases(): Map<String, Pair<String, ProjectTestCases>> {
-        val root = File(testDataRoot, "projects")
+    fun readIntegrationTestCase(name: String): ProjectTestCases {
+        val testCasePath = Path(testDataPath, "projects", name)
+        if (!(testCasePath.exists())) {
+            error("Integration test case '$name' not found")
+        }
+        if (!(testCasePath.isDirectory())) {
+            error("Integration test case '$name' is not a directory")
+        }
+        val testFile = testCasePath.resolve("expected.toml")
         val mapper = TomlMapper()
-
-        return root.listFiles { file -> file.isDirectory }?.associate { subDir ->
-            val testFile = subDir.resolve("expected.toml")
-            val relativeCaseDir = "projects/${subDir.name}"
-            (subDir.name to Pair(relativeCaseDir, mapper.readValue(testFile, ProjectTestCases::class.java)))
-        } ?: emptyMap()
+        val testCase = mapper.readValue(testFile.toFile(), ProjectTestCases::class.java)
+        return testCase
     }
 
     private fun collectUsages(element: PsiElement): Map<Position, Usage> =
@@ -117,9 +134,9 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         val fixtureRootPath = fixtureRoot.path.trimEnd('/') + "/"
         val refs = ReferencesSearch.search(element).findAll()
         for (ref in refs) {
-            log.info("Processing reference: ${ref.element.text}")
+            log.debug("Processing reference: ${ref.element.text}")
             val usage = UsageInfo2UsageAdapter(UsageInfo(ref))
-            log.info("Processing usage: ${usage.plainText}")
+            log.debug("Processing usage: ${usage.plainText}")
             val file = ref.element.containingFile
             val document = PsiDocumentManager.getInstance(project).getDocument(file)
                 ?: error("No document for usage ${usage.plainText}")
@@ -136,7 +153,7 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
     }
 
     private fun checkExpectedUsages(
-        rule: NotRustTestsUsageFilteringRule, usages: Map<Position, Usage>, expected: List<Expected>
+        rule: RustTestsUsageFilteringRule, usages: Map<Position, Usage>, expected: List<Expected>
     ): Result<Unit> = runCatching {
         require(expected.isNotEmpty()) { "No expectations provided." }
         require(expected.size == usages.size) {
@@ -153,7 +170,7 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         }
     }
 
-    private fun runUnitTestCase(name: String, testCase: TestCase): Result<Unit> {
+    suspend fun runUnitTestCase(name: String, testCase: TestCase): Result<Unit> {
         val caretString = "<caret>"
         val caretIndex = testCase.source.indexOf(caretString)
         if (caretIndex == -1) {
@@ -161,18 +178,20 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         }
         val file = myFixture.addFileToProject("$name.rs", testCase.source.trimIndent())
         myFixture.configureFromExistingVirtualFile(file.virtualFile)
-        val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
-        val namedElement = element.parent
-        val usages = collectUsages(namedElement)
-        val rule = NotRustTestsUsageFilteringRule()
-        return checkExpectedUsages(rule, usages, testCase.expected)
+        val expectedUsages = withContext(Dispatchers.EDT) {
+            val element = myFixture.file.findElementAt(myFixture.caretOffset) ?: error("No element at caret")
+            val namedElement = element.parent
+            val usages = collectUsages(namedElement)
+            val rule = RustTestsUsageFilteringRule()
+            checkExpectedUsages(rule, usages, testCase.expected)
+        }
+        return expectedUsages
     }
 
-    private fun runProjectsTestCase(testCase: Pair<String, ProjectTestCases>): Result<Unit> = runCatching {
-        val (relativeDir, projectTestCases) = testCase
-        val projectRoot = "$relativeDir/project"
-
-        val testsExists = File(testDataRoot, "$projectRoot/tests").isDirectory
+    fun runProjectsTestCase(name: String, testCase: ProjectTestCases): Result<Unit> = runCatching {
+        val projectRoot = "projects/$name/project"
+        val testPath = Path(testDataPath, projectRoot)
+        val testsExists = File(testPath.toString(), "tests").isDirectory
 
         myFixture.copyFileToProject("$projectRoot/Cargo.toml", "Cargo.toml")
         myFixture.copyDirectoryToProject("$projectRoot/src", "src")
@@ -197,11 +216,11 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
 
             IndexingTestUtil.waitUntilIndexesAreReady(project)
 
-            val caretFilePath = projectTestCases.caret.path
-            log.info("Caret file path: $caretFilePath")
+            val caretFilePath = testCase.caret.path
+            log.debug("Caret file path: $caretFilePath")
             val caretFile = myFixture.findFileInTempDir(caretFilePath) ?: error("Caret file not found: $caretFilePath")
 
-            val caretPos = projectTestCases.caret.position
+            val caretPos = testCase.caret.position
             val logicalPosition = LogicalPosition(caretPos.line - 1, caretPos.column - 1)
             withContext(Dispatchers.EDT) {
                 myFixture.configureFromExistingVirtualFile(caretFile)
@@ -225,16 +244,16 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
             }
         }
 
-        println("Found ${projectUsages.size} usages in project:")
+        log.debug("Found ${projectUsages.size} usages in project:")
         for ((path, usages) in projectUsages) {
-            println("Usages for $path:")
+            log.debug("Usages for $path:")
             for (usage in usages) {
-                println("  - $usage")
+                log.debug("  - $usage")
             }
         }
-        val rule = NotRustTestsUsageFilteringRule()
+        val rule = RustTestsUsageFilteringRule()
 
-        projectTestCases.files.forEach { case ->
+        testCase.files.forEach { case ->
             val testPath = case.path
             val testFile =
                 myFixture.findFileInTempDir(testPath) ?: error("Test file not found in fixture temp dir: $testPath")
@@ -250,41 +269,5 @@ class NotRustTestsUsageFilteringRuleTest : BasePlatformTestCase() {
         }
 
         Result.success(Unit)
-    }
-
-    fun testRustUnitTests() {
-        val testCases = readUnitTestCases()
-        if (testCases.isEmpty()) {
-            error("No test cases found")
-        }
-        testCases.forEach { (name, testCase) ->
-            runUnitTestCase(name, testCase).onFailure { exception ->
-                fail("Test case '$name' failed: ${exception.message}")
-            }
-        }
-    }
-
-    private fun runIntegrationTest(name: String) {
-        val testCase = readProjectsTestCases()[name] ?: error("No integration test case found for '$name'")
-
-        runProjectsTestCase(testCase).onFailure { exception ->
-            log.error(
-                "Test case '$name' failed: ${exception.message}, cause: ${exception.cause}, stack: ${exception.stackTraceToString()}",
-                exception
-            )
-            fail("Test case '$name' failed: ${exception.message}")
-        }
-    }
-
-    fun testRustIntegrationBench() {
-        runIntegrationTest("bench")
-    }
-
-    fun testRustIntegrationSimple() {
-        runIntegrationTest("simple")
-    }
-
-    fun testRustIntegrationTrait() {
-        runIntegrationTest("trait")
     }
 }

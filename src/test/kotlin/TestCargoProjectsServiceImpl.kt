@@ -95,14 +95,9 @@ class TestCargoProjectsServiceImpl(project: Project, cs: CoroutineScope) : Cargo
     fun createTestCargoWorkspace(root: VirtualFile): CargoWorkspace {
         val contentRoot = root.url
         val cargoToml = root.findChild("Cargo.toml") ?: error("Cargo.toml not found in $contentRoot")
-        val packageName = cargoToml.contentsToByteArray().toString(Charsets.UTF_8)
-            .lineSequence()
-            .map(String::trim)
-            .firstOrNull { it.startsWith("name") && it.contains('=') }
-            ?.substringAfter('=')
-            ?.trim()
-            ?.removeSurrounding("\"")
-            ?: error("Package name not found in ${cargoToml.path}")
+        val packageName = cargoToml.contentsToByteArray().toString(Charsets.UTF_8).lineSequence().map(String::trim)
+            .firstOrNull { it.startsWith("name") && it.contains('=') }?.substringAfter('=')?.trim()
+            ?.removeSurrounding("\"") ?: error("Package name not found in ${cargoToml.path}")
         val packages = listOf(testCargoPackage(root, contentRoot, packageName))
         return CargoWorkspace.deserialize(
             Paths.get("$contentRoot/workspace/Cargo.toml"),

@@ -46,7 +46,8 @@ intellijPlatform {
             </ul>
         """.trimIndent()
     }
-    instrumentCode = true
+//    instrumentCode = true
+    instrumentCode = false
 }
 
 tasks {
