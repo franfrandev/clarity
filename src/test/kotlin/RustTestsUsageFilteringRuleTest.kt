@@ -2,7 +2,7 @@ import com.intellij.openapi.diagnostic.Logger
 
 val log = Logger.getInstance("com.github.filteroutrusttests")
 
-class RustTestsUsageFilteringRuleUnitTests : TestInterface() {
+class RustTestsUsageFilteringRuleUnitTests : UnitTestFixture() {
     fun testRustUnitCfgTest() {
         runUnitTest("cfg_test")
     }
@@ -24,7 +24,7 @@ class RustTestsUsageFilteringRuleUnitTests : TestInterface() {
     }
 }
 
-class RustTestsUsageFilteringRuleIntegrationTest : TestInterface() {
+class RustTestsUsageFilteringRuleIntegrationTest : IntegrationTestFixture() {
     fun testRustIntegrationBench() {
         runIntegrationTest("bench")
     }
