@@ -15,6 +15,7 @@ class LightweightCargoProject(private val myFixture: CodeInsightTestFixture) {
         if (caretIndex == -1) {
             return Result.failure(Exception("Caret not found in test case source"))
         }
+        log.debug("Caret found at index $caretIndex")
         return Result.success(Unit)
     }
 
@@ -31,13 +32,19 @@ class LightweightCargoProject(private val myFixture: CodeInsightTestFixture) {
             val namedElement = element.parent
             collectUnitTestUsages(namedElement)
         }
+        log.debug("Collected ${usages.size} usages")
+        if (usages.isEmpty()) {
+            return Result.failure(Exception("No usages found"))
+        }
         return Result.success(usages)
     }
 
-    private fun collectUnitTestUsages(element: PsiElement): Map<Position, Usage> =
-        ReferencesSearch.search(element).findAll().associate { reference ->
+    private fun collectUnitTestUsages(element: PsiElement): Map<Position, Usage> {
+        log.debug("Collecting usages for element: ${element.text}")
+        return ReferencesSearch.search(element).findAll().associate { reference ->
             val usage = UsageInfo2UsageAdapter(UsageInfo(reference))
             val position = (usage.location as TextEditorLocation).position
             Position(position.line + 1, position.column + 1) to usage
         }
+    }
 }
