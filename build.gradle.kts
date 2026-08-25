@@ -47,7 +47,8 @@ intellijPlatform {
         """.trimIndent()
     }
 //    instrumentCode = true
-    instrumentCode = false
+    instrumentCode =
+        false // TODO: Execution failed for task ':instrumentCode' (registered by plugin class 'org.jetbrains.intellij.platform.gradle.plugins.project.IntelliJPlatformModulePlugin').
 }
 
 tasks {
