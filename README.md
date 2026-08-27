@@ -1,6 +1,11 @@
-# Filter Out Rust Tests
+# Clarity
 
-IntelliJ Platform plugin that adds a **Find Usages** filter to hide usages that are inside Rust `#[test]` functions.
+IntelliJ plugin that adds a filter to usages that are cluttering user space.
+
+One of the primary use-cases is to hide usages that are directly or indirectly exclusively used by test functions.
+
+This started as a fork of [Filter Out Rust Tests](https://github.com/franfrandev/filter_out_rust_tests) and is now
+expanding to other languages.
 
 ## Disclaimer
 
@@ -9,17 +14,14 @@ This plugin is still in alpha and isn't published yet. Because of this, you may 
 Here is a guide: https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk
 To avoid having to build the plugin from source, you can download the pre-built JAR file from the "releases" page.
 
-## Features
+## Support of languages
 
-- Adds a Usage View toggle: **Exclude Usages in Rust Tests**.
-- Toggle semantics are straightforward: enabled means test-function usages are excluded.
-- The toggle is visible only for Rust usage searches.
+| Language | Status |
+|----------|--------|
+| Rust     | ✅     |
+| Go       | ⏳     |
 
-## Compatibility
-
-- Built against RustRover `2026.1`.
-- Compatible build range: `261.*`.
-- Requires plugin: `com.jetbrains.rust`.
+Have any language that you need to support, please open an issue or a pull request.
 
 ## Development
 
