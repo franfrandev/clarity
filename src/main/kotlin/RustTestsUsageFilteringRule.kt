@@ -1,9 +1,15 @@
 package com.github.filteroutrusttests
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.util.Key
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
 import com.intellij.psi.search.searches.ReferencesSearch
+import com.intellij.psi.util.CachedValue
+import com.intellij.psi.util.CachedValueProvider
+import com.intellij.psi.util.CachedValuesManager
+import com.intellij.psi.util.PsiModificationTracker
 import com.intellij.usages.Usage
 import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
@@ -11,22 +17,12 @@ import org.rust.lang.core.psi.RsFunction
 import org.rust.lang.core.psi.ext.isTest
 import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
-import java.util.concurrent.ConcurrentHashMap
 import kotlin.io.path.name
 
 class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
-    private val memo = ConcurrentHashMap<PsiElement, Boolean>()
-    private var lastClearTime: Long = System.currentTimeMillis()
-
     override fun isVisible(usage: Usage): Boolean = ReadAction.compute<Boolean, RuntimeException> {
-        val currentTime = System.currentTimeMillis()
-        if (currentTime - lastClearTime > 1000 * 60) { // Clear memo every minute
-            memo.clear()
-            lastClearTime = currentTime
-        }
-
         val psiUsage = usage as? PsiElementUsage ?: return@compute true
         val element = psiUsage.element ?: return@compute true
 
@@ -68,19 +64,28 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
             return false
         }
 
-        memo[element]?.let { return it }
-
         if (visiting.contains(element)) return false
 
         visiting.add(element)
         try {
-            val result = calculateIsInsideRustTest(element, visiting, startTime, depth)
-            memo[element] = result
-            return result
+            return CachedValuesManager.getCachedValue(element, insideTestKey) {
+                CachedValueProvider.Result.create(
+                    calculateIsInsideRustTest(element, visiting, startTime, depth),
+                    PsiModificationTracker.MODIFICATION_COUNT
+                )
+            }
         } finally {
             visiting.remove(element)
         }
     }
+
+    private fun referencesOf(element: PsiElement): List<PsiReference> =
+        CachedValuesManager.getCachedValue(element, referencesKey) {
+            CachedValueProvider.Result.create(
+                ReferencesSearch.search(element).findAll().toList(),
+                PsiModificationTracker.MODIFICATION_COUNT
+            )
+        }
 
     private fun calculateIsInsideRustTest(
         element: PsiElement, visiting: MutableSet<PsiElement>, startTime: Long, depth: Int
@@ -94,14 +99,16 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
                 return true
             }
 
-            val references = ReferencesSearch.search(element)
+            val references = referencesOf(element)
 
-            val allInTests = references.allMatch {
+            var hasReferences = false
+            val allInTests = references.all {
+                hasReferences = true
                 val inTest = isInsideRustTestFunction(it.element, visiting, startTime, depth + 1)
                 inTest
             }
 
-            if (references.count() > 0 && allInTests) {
+            if (hasReferences && allInTests) {
                 return true
             }
         }
@@ -111,6 +118,13 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
     }
 
     companion object {
+        private val referencesKey = Key.create<CachedValue<List<PsiReference>>>(
+            "rust.tests.usageFiltering.references"
+        )
+        private val insideTestKey = Key.create<CachedValue<Boolean>>(
+            "rust.tests.usageFiltering.insideTest"
+        )
+
         const val RULE_ID: String = "com.github.filteroutrusttests.notRustTests"
         const val MAX_DEPTH: Int = 20
         const val TIMEOUT_MS: Long = 500

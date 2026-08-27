@@ -1,8 +1,13 @@
-This plugin is still in alpha and isn't published yet. Because of this, you ay want to "install it from disk". Here is a guide: https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk
-
 # Filter Out Rust Tests
 
 IntelliJ Platform plugin that adds a **Find Usages** filter to hide usages that are inside Rust `#[test]` functions.
+
+## Disclaimer
+
+This plugin is still in alpha and isn't published yet. Because of this, you may want to "install it from disk".
+
+Here is a guide: https://www.jetbrains.com/help/idea/managing-plugins.html#install_plugin_from_disk
+To avoid having to build the plugin from source, you can download the pre-built JAR file from the "releases" page.
 
 ## Features
 
