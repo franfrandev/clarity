@@ -20,8 +20,6 @@ import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
 import kotlin.io.path.name
 
-val log = Logger.getInstance("com.github.clarity.rust")
-
 class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
@@ -130,6 +128,8 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
     }
 
     companion object {
+        val log = Logger.getInstance("com.github.clarity.rust")
+
         private val referencesKey = Key.create<CachedValue<List<PsiReference>>>(
             "rust.tests.usageFiltering.references"
         )

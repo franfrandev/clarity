@@ -16,8 +16,6 @@ import com.intellij.usages.Usage
 import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
 
-val log = Logger.getInstance("com.github.clarity.go")
-
 class GoTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
@@ -120,6 +118,8 @@ class GoTestsUsageFilteringRule : UsageFilteringRule {
     }
 
     companion object {
+        val log = Logger.getInstance("com.github.clarity.go")
+
         private val referencesKey = Key.create<CachedValue<List<PsiReference>>>(
             "go.tests.usageFiltering.references"
         )

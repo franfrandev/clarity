@@ -18,6 +18,10 @@ import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
 import com.intellij.usages.rules.UsageFilteringRuleProvider
 
+private val SUPPORTED_LANGUAGE_IDS = setOf("Rust", "go")
+private val RUST_PLUGIN_ID = PluginId.getId("com.jetbrains.rust")
+private val GO_PLUGIN_ID = PluginId.getId("org.jetbrains.plugins.go")
+
 class LangUsageFilteringRuleProvider : UsageFilteringRuleProvider {
     override fun getApplicableRules(project: Project): Collection<UsageFilteringRule> = emptyList()
 
@@ -76,17 +80,14 @@ class LangUsageFilteringRuleProvider : UsageFilteringRuleProvider {
             PropertiesComponent.getInstance(project).getBoolean(ENABLED_KEY, false)
     }
 
+    private fun isPluginInstalled(pluginId: PluginId): Boolean = PluginManagerCore.isPluginInstalled(pluginId)
+
+    private fun isEnabled(project: Project): Boolean =
+        PropertiesComponent.getInstance(project).getBoolean(ENABLED_KEY, false)
+
     companion object {
         val log = Logger.getInstance("com.github.clarity.ui")
 
         private const val ENABLED_KEY = "com.github.clarity.testsFilter.enabled"
-        private val SUPPORTED_LANGUAGE_IDS = setOf("Rust", "go")
-        private val RUST_PLUGIN_ID = PluginId.getId("com.jetbrains.rust")
-        private val GO_PLUGIN_ID = PluginId.getId("org.jetbrains.plugins.go")
-
-        private fun isPluginInstalled(pluginId: PluginId): Boolean = PluginManagerCore.isPluginInstalled(pluginId)
-
-        private fun isEnabled(project: Project): Boolean =
-            PropertiesComponent.getInstance(project).getBoolean(ENABLED_KEY, false)
     }
 }
