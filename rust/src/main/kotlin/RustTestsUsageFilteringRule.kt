@@ -1,6 +1,7 @@
-package com.github.filteroutrusttests
+package com.github.clarity.rust
 
 import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.util.Key
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.psi.PsiElement
@@ -18,6 +19,8 @@ import org.rust.lang.core.psi.ext.isTest
 import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
 import kotlin.io.path.name
+
+val log = Logger.getInstance("com.github.clarity.rust")
 
 class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
@@ -82,8 +85,7 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
     private fun referencesOf(element: PsiElement): List<PsiReference> =
         CachedValuesManager.getCachedValue(element, referencesKey) {
             CachedValueProvider.Result.create(
-                ReferencesSearch.search(element).findAll().toList(),
-                PsiModificationTracker.MODIFICATION_COUNT
+                ReferencesSearch.search(element).findAll().toList(), PsiModificationTracker.MODIFICATION_COUNT
             )
         }
 
@@ -133,7 +135,7 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
             "rust.tests.usageFiltering.insideTest"
         )
 
-        const val RULE_ID: String = "com.github.filteroutrusttests.notRustTests"
+        const val RULE_ID: String = "com.github.clarity.notRustTests"
         const val MAX_DEPTH: Int = 20
         const val TIMEOUT_MS: Long = 500
     }

@@ -5,7 +5,10 @@ plugins {
     id("org.jetbrains.intellij.platform.settings") version "2.10.5"
 }
 
-rootProject.name = "filter-out-rust-tests"
+rootProject.name = "clarity"
+include(":ui")
+include(":rust")
+include(":go")
 
 dependencyResolutionManagement {
     repositories {
