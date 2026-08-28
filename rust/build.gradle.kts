@@ -10,11 +10,6 @@ plugins {
 group = "com.github.clarity.rust"
 version = "1.0.0"
 
-// Set the JVM language level used to build the project.
-kotlin {
-    jvmToolchain(21)
-}
-
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {

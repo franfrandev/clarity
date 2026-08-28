@@ -1,9 +1,9 @@
 package com.github.clarity.rust
 
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadActionBlocking
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.util.Key
 import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.util.Key
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiReference
 import com.intellij.psi.search.searches.ReferencesSearch
@@ -20,26 +20,26 @@ import org.rust.lang.core.psi.ext.isUnderCfgTest
 import java.nio.file.Paths
 import kotlin.io.path.name
 
-val log = Logger.getInstance("com.github.clarity.rust")
-
 class RustTestsUsageFilteringRule : UsageFilteringRule {
     override fun getRuleId(): String = RULE_ID
 
-    override fun isVisible(usage: Usage): Boolean = ReadAction.compute<Boolean, RuntimeException> {
-        val psiUsage = usage as? PsiElementUsage ?: return@compute true
-        val element = psiUsage.element ?: return@compute true
+    override fun isVisible(usage: Usage): Boolean = runReadActionBlocking {
+        log.debug("Checking visibility of usage: $usage")
+
+        val psiUsage = usage as? PsiElementUsage ?: return@runReadActionBlocking true
+        val element = psiUsage.element ?: return@runReadActionBlocking true
 
         if (isInTestLikeDir(element)) {
-            return@compute false
+            return@runReadActionBlocking false
         }
 
         if (!isRustElement(element)) {
-            return@compute true
+            return@runReadActionBlocking true
         }
 
         val startTime = System.currentTimeMillis()
         val filterOut = shouldFilterOut(element, startTime)
-        return@compute !filterOut
+        return@runReadActionBlocking !filterOut
     }
 
     private fun isRustElement(element: PsiElement): Boolean {
@@ -128,6 +128,8 @@ class RustTestsUsageFilteringRule : UsageFilteringRule {
     }
 
     companion object {
+        val log = Logger.getInstance("com.github.clarity.rust")
+
         private val referencesKey = Key.create<CachedValue<List<PsiReference>>>(
             "rust.tests.usageFiltering.references"
         )

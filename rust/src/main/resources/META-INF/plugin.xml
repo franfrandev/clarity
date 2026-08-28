@@ -1,0 +1,6 @@
+<idea-plugin>
+    <dependencies>
+        <plugin id="com.jetbrains.rust"/>
+        <plugin id="org.toml.lang"/>
+    </dependencies>
+</idea-plugin>
