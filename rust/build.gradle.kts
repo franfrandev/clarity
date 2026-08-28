@@ -10,7 +10,10 @@ plugins {
 group = "com.github.clarity.rust"
 version = "1.0.0"
 
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
+kotlin {
+    jvmToolchain(providers.gradleProperty("javaVersion").get().toInt())
+}
+
 dependencies {
     intellijPlatform {
         rustRover("2026.1")
@@ -41,20 +44,14 @@ intellijPlatform {
             </ul>
         """.trimIndent()
     }
-//    instrumentCode = true
     instrumentCode =
         false // TODO: Execution failed for task ':instrumentCode' (registered by plugin class 'org.jetbrains.intellij.platform.gradle.plugins.project.IntelliJPlatformModulePlugin').
 }
 
 tasks {
-//    wrapper {
-//        gradleVersion = providers.gradleProperty("gradleVersion").get()
-//    }
     test {
         useJUnit()
         inputs.dir("src/test/testData")
         systemProperty("testDataPath", project.projectDir.resolve("src/test/testData").absolutePath)
-//        systemProperty("idea.log.debug.categories", "com.intellij,org.rust,#TestCargoProjectsServiceImpl")
-//        systemProperty("idea.log.trace.categories", "com.intellij,org.rust")
     }
 }

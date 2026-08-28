@@ -8,12 +8,10 @@ plugins {
 group = "com.github.clarity.ui"
 version = "1.0.0"
 
-// Set the JVM language level used to build the project.
 kotlin {
-    jvmToolchain(26)
+    jvmToolchain(providers.gradleProperty("javaVersion").get().toInt())
 }
 
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     implementation(project(":rust"))
     implementation(project(":go"))

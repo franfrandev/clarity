@@ -6,6 +6,9 @@
         Adds a filter that excludes usages located in tests.
     ]]></description>
     <depends>com.intellij.modules.platform</depends>
+    <depends optional="true" config-file="rust.xml">com.jetbrains.rust</depends>
+    <depends optional="true" config-file="toml.xml">org.toml.lang</depends>
+    <depends optional="true" config-file="go.xml">org.jetbrains.plugins.go</depends>
     <extensions defaultExtensionNs="com.intellij">
         <usageFilteringRuleProvider implementation="com.github.clarity.ui.LangUsageFilteringRuleProvider"/>
     </extensions>

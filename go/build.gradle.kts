@@ -10,7 +10,10 @@ plugins {
 group = "com.github.clarity.go"
 version = "1.0.0"
 
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
+kotlin {
+    jvmToolchain(providers.gradleProperty("javaVersion").get().toInt())
+}
+
 dependencies {
     intellijPlatform {
         goland("2026.1")
