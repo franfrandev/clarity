@@ -18,8 +18,6 @@ import com.intellij.usages.rules.PsiElementUsage
 import com.intellij.usages.rules.UsageFilteringRule
 import com.intellij.usages.rules.UsageFilteringRuleProvider
 
-val log = Logger.getInstance("com.github.clarity.ui")
-
 class LangUsageFilteringRuleProvider : UsageFilteringRuleProvider {
     override fun getApplicableRules(project: Project): Collection<UsageFilteringRule> = emptyList()
 
@@ -48,7 +46,8 @@ class LangUsageFilteringRuleProvider : UsageFilteringRuleProvider {
         override fun setSelected(e: AnActionEvent, state: Boolean) {
             val project = e.project ?: return
             PropertiesComponent.getInstance(project).setValue(ENABLED_KEY, state, false)
-            project.messageBus.syncPublisher(UsageFilteringRuleProvider.RULES_CHANGED).run()
+            @Suppress("UnstableApiUsage") project.messageBus.syncPublisher(UsageFilteringRuleProvider.RULES_CHANGED)
+                .run()
         }
 
         override fun update(e: AnActionEvent) {
@@ -78,6 +77,8 @@ class LangUsageFilteringRuleProvider : UsageFilteringRuleProvider {
     }
 
     companion object {
+        val log = Logger.getInstance("com.github.clarity.ui")
+
         private const val ENABLED_KEY = "com.github.clarity.testsFilter.enabled"
         private val SUPPORTED_LANGUAGE_IDS = setOf("Rust", "go")
         private val RUST_PLUGIN_ID = PluginId.getId("com.jetbrains.rust")

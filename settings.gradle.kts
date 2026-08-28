@@ -11,6 +11,7 @@ include(":rust")
 include(":go")
 
 dependencyResolutionManagement {
+    @Suppress("UnstableApiUsage")
     repositories {
         mavenCentral()
 

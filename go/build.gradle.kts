@@ -10,17 +10,12 @@ plugins {
 group = "com.github.clarity.go"
 version = "1.0.0"
 
-// Set the JVM language level used to build the project.
-kotlin {
-    jvmToolchain(21)
-}
-
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin.html
 dependencies {
     intellijPlatform {
         goland("2026.1")
 
-        bundledPlugins("com.intellij.modules.go", "org.jetbrains.plugins.go")
+        bundledPlugin("org.jetbrains.plugins.go")
 
         testFramework(TestFrameworkType.Platform)
 
