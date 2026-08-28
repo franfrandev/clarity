@@ -1,5 +1,5 @@
 import com.fasterxml.jackson.dataformat.toml.TomlMapper
-import com.github.filteroutrusttests.RustTestsUsageFilteringRule
+import com.github.clarity.rust.RustTestsUsageFilteringRule
 import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.vfs.readText

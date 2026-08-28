@@ -1,6 +1,6 @@
 import com.intellij.openapi.diagnostic.Logger
 
-val log = Logger.getInstance("com.github.filteroutrusttests")
+val log = Logger.getInstance("com.github.clarity.rust.test")
 
 class RustTestsUsageFilteringRuleUnitTests : UnitTestFixture() {
     fun testRustUnitCfgTest() {

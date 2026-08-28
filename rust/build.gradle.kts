@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.intellijPlatformBase)
 }
 
-group = "com.github.filteroutrusttests"
+group = "com.github.clarity.rust"
 version = "1.0.0"
 
 // Set the JVM language level used to build the project.
@@ -52,9 +52,9 @@ intellijPlatform {
 }
 
 tasks {
-    wrapper {
-        gradleVersion = providers.gradleProperty("gradleVersion").get()
-    }
+//    wrapper {
+//        gradleVersion = providers.gradleProperty("gradleVersion").get()
+//    }
     test {
         useJUnit()
         inputs.dir("src/test/testData")
