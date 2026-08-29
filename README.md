@@ -1,5 +1,7 @@
 # Clarity
 
+![image](./resources/pluginIcon.svg)
+
 IntelliJ plugin that adds a filter to usages that are cluttering user space.
 
 One of the primary use-cases is to hide usages that are directly or indirectly exclusively used by test functions.
