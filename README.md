@@ -1,4 +1,4 @@
-# Clarity <img width="40" height="40" alt="Plugin logo" src="https://github.com/user-attachments/assets/4242bcf7-50de-4052-ad5b-8bbe1187b3ad"/>
+# Clarity <img src="./ui/src/main/resources/META-INF/pluginIcon.svg" style="vertical-align: -30%;" alt="plugin logo">
 
 IntelliJ plugin that adds a filter to usages that are cluttering user space.
 
