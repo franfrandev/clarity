@@ -1,4 +1,4 @@
-# Clarity <img src="./ui/src/main/resources/META-INF/pluginIcon.svg" width=45>
+# Clarity ![plugin logo](./ui/src/main/resources/META-INF/pluginIcon.svg)
 
 IntelliJ plugin that adds a filter to usages that are cluttering user space.
 
