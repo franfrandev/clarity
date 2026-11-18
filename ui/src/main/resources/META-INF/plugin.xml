@@ -12,4 +12,13 @@
     <extensions defaultExtensionNs="com.intellij">
         <usageFilteringRuleProvider implementation="com.github.clarity.ui.LangUsageFilteringRuleProvider"/>
     </extensions>
+    <actions>
+        <action id="Clarity.ExcludeUsagesInTests"
+                class="com.intellij.openapi.actionSystem.EmptyAction"
+                text="Exclude Usages in Tests"
+                description="Hide usages inside Rust and Go tests"
+                icon="AllIcons.Actions.Close">
+            <add-to-group group-id="UsageFilteringActionGroup" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>
